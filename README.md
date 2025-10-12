@@ -293,11 +293,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Users**: For feedback and feature requests
 
 ## 📞 Contact
-
-- **Website**: https://pyguardian.org
-- **Email**: team@pyguardian.org
-- **Twitter**: [@PyGuardianSec](https://twitter.com/PyGuardianSec)
-- **LinkedIn**: [PyGuardian](https://linkedin.com/company/pyguardian)
+- **Email**: anillemree@gmail.com
 
 ---
 
