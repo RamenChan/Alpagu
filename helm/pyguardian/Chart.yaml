@@ -1,0 +1,20 @@
+apiVersion: v2
+name: pyguardian
+description: PyGuardian v3 - Threat Hunting & Incident Response Platform
+type: application
+version: 0.1.0
+appVersion: "3.0.0"
+home: https://github.com/pyguardian/pyguardian
+sources:
+  - https://github.com/pyguardian/pyguardian
+maintainers:
+  - name: PyGuardian Team
+    email: team@pyguardian.org
+keywords:
+  - security
+  - threat-hunting
+  - incident-response
+  - siem
+  - network-monitoring
+annotations:
+  category: Security

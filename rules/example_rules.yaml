@@ -1,0 +1,313 @@
+# PyGuardian v3 Rules Engine Configuration
+# YAML-based rule definitions for threat detection
+
+rules:
+  # SSH Brute Force Detection
+  - id: "rule-ssh-brute-force"
+    name: "SSH Brute Force Attack"
+    description: "Detects multiple failed SSH login attempts from a single source"
+    enabled: true
+    severity: "high"
+    category: "brute_force"
+    
+    # Rule conditions
+    conditions:
+      - field: "dest_port"
+        operator: "equals"
+        value: 22
+      - field: "protocol"
+        operator: "equals"
+        value: 6
+      - field: "enrichment.threat_intel.dest_reputation.score"
+        operator: "less_than"
+        value: -20
+    
+    # Aggregation settings
+    aggregation:
+      group_by: ["source_ip", "dest_ip"]
+      time_window: "5m"
+      threshold:
+        count: 10
+        operator: "greater_than"
+    
+    # MITRE ATT&CK mapping
+    mitre_attack:
+      tactics: ["TA0006", "TA0007"]
+      techniques: ["T1110", "T1021"]
+      sub_techniques: ["T1110.001", "T1021.004"]
+    
+    # Actions to take when rule fires
+    actions:
+      - type: "create_alert"
+        severity: "high"
+        auto_assign: true
+      - type: "notify"
+        channels: ["slack", "email"]
+        recipients: ["security-team@company.com"]
+      - type: "create_incident"
+        priority: "high"
+        auto_assign: true
+      - type: "run_script"
+        script: "block_source_ip.sh"
+        parameters:
+          ip: "{{ source_ip }}"
+          duration: "1h"
+    
+    # Rule metadata
+    tags: ["ssh", "brute-force", "external-threat"]
+    created_by: "security-admin"
+    created_at: "2024-01-15T00:00:00Z"
+    updated_at: "2024-01-15T00:00:00Z"
+
+  # Port Scan Detection
+  - id: "rule-port-scan"
+    name: "Port Scan Activity"
+    description: "Detects horizontal port scanning from a single source"
+    enabled: true
+    severity: "medium"
+    category: "reconnaissance"
+    
+    conditions:
+      - field: "protocol"
+        operator: "in"
+        value: [6, 17]  # TCP or UDP
+      - field: "enrichment.source_asset.criticality"
+        operator: "not_equals"
+        value: "internal"
+    
+    aggregation:
+      group_by: ["source_ip"]
+      time_window: "10m"
+      threshold:
+        unique_dest_ports: 20
+        operator: "greater_than"
+    
+    mitre_attack:
+      tactics: ["TA0043"]
+      techniques: ["T1046"]
+      sub_techniques: ["T1046.001"]
+    
+    actions:
+      - type: "create_alert"
+        severity: "medium"
+        auto_assign: false
+      - type: "notify"
+        channels: ["slack"]
+        recipients: ["security-team@company.com"]
+      - type: "run_script"
+        script: "log_suspicious_activity.sh"
+        parameters:
+          source_ip: "{{ source_ip }}"
+          activity_type: "port_scan"
+    
+    tags: ["port-scan", "reconnaissance", "external-threat"]
+    created_by: "security-admin"
+    created_at: "2024-01-15T00:00:00Z"
+    updated_at: "2024-01-15T00:00:00Z"
+
+  # Outbound to Blacklisted IP
+  - id: "rule-blacklisted-destination"
+    name: "Communication with Blacklisted IP"
+    description: "Detects outbound communication to known malicious IPs"
+    enabled: true
+    severity: "critical"
+    category: "malware"
+    
+    conditions:
+      - field: "enrichment.threat_intel.dest_reputation.categories"
+        operator: "contains_any"
+        value: ["malware", "botnet", "c2", "phishing"]
+      - field: "enrichment.threat_intel.dest_reputation.score"
+        operator: "less_than"
+        value: -50
+    
+    aggregation:
+      group_by: ["source_ip", "dest_ip"]
+      time_window: "1m"
+      threshold:
+        count: 1
+        operator: "greater_than_or_equal"
+    
+    mitre_attack:
+      tactics: ["TA0011", "TA0001"]
+      techniques: ["T1071", "T1041"]
+      sub_techniques: ["T1071.001", "T1041.001"]
+    
+    actions:
+      - type: "create_alert"
+        severity: "critical"
+        auto_assign: true
+      - type: "notify"
+        channels: ["slack", "email", "sms"]
+        recipients: ["security-team@company.com", "incident-response@company.com"]
+      - type: "create_incident"
+        priority: "critical"
+        auto_assign: true
+      - type: "run_script"
+        script: "isolate_endpoint.sh"
+        parameters:
+          source_ip: "{{ source_ip }}"
+          reason: "communication_with_malicious_ip"
+      - type: "run_script"
+        script: "block_destination.sh"
+        parameters:
+          dest_ip: "{{ dest_ip }}"
+          duration: "24h"
+    
+    tags: ["malware", "c2", "blacklist", "critical"]
+    created_by: "security-admin"
+    created_at: "2024-01-15T00:00:00Z"
+    updated_at: "2024-01-15T00:00:00Z"
+
+  # Data Exfiltration Detection
+  - id: "rule-data-exfiltration"
+    name: "Potential Data Exfiltration"
+    description: "Detects large outbound data transfers to external destinations"
+    enabled: true
+    severity: "high"
+    category: "data_exfiltration"
+    
+    conditions:
+      - field: "enrichment.source_asset.criticality"
+        operator: "in"
+        value: ["high", "critical"]
+      - field: "enrichment.geolocation.dest.country"
+        operator: "not_equals"
+        value: "United States"
+      - field: "bytes_sent"
+        operator: "greater_than"
+        value: 10485760  # 10MB
+    
+    aggregation:
+      group_by: ["source_ip", "dest_ip"]
+      time_window: "1h"
+      threshold:
+        total_bytes: 104857600  # 100MB
+        operator: "greater_than"
+    
+    mitre_attack:
+      tactics: ["TA0010"]
+      techniques: ["T1041"]
+      sub_techniques: ["T1041.001"]
+    
+    actions:
+      - type: "create_alert"
+        severity: "high"
+        auto_assign: true
+      - type: "notify"
+        channels: ["slack", "email"]
+        recipients: ["security-team@company.com", "data-protection@company.com"]
+      - type: "create_incident"
+        priority: "high"
+        auto_assign: true
+      - type: "run_script"
+        script: "capture_network_traffic.sh"
+        parameters:
+          source_ip: "{{ source_ip }}"
+          dest_ip: "{{ dest_ip }}"
+          duration: "2h"
+    
+    tags: ["data-exfiltration", "external-transfer", "high-value-asset"]
+    created_by: "security-admin"
+    created_at: "2024-01-15T00:00:00Z"
+    updated_at: "2024-01-15T00:00:00Z"
+
+  # Unusual DNS Activity
+  - id: "rule-dns-tunneling"
+    name: "Potential DNS Tunneling"
+    description: "Detects suspicious DNS queries that may indicate tunneling"
+    enabled: true
+    severity: "medium"
+    category: "dns_tunneling"
+    
+    conditions:
+      - field: "dest_port"
+        operator: "equals"
+        value: 53
+      - field: "protocol"
+        operator: "equals"
+        value: 17
+      - field: "packets_sent"
+        operator: "greater_than"
+        value: 100
+    
+    aggregation:
+      group_by: ["source_ip", "dest_ip"]
+      time_window: "5m"
+      threshold:
+        unique_queries: 50
+        operator: "greater_than"
+    
+    mitre_attack:
+      tactics: ["TA0011"]
+      techniques: ["T1071"]
+      sub_techniques: ["T1071.004"]
+    
+    actions:
+      - type: "create_alert"
+        severity: "medium"
+        auto_assign: false
+      - type: "notify"
+        channels: ["slack"]
+        recipients: ["security-team@company.com"]
+      - type: "run_script"
+        script: "analyze_dns_queries.sh"
+        parameters:
+          source_ip: "{{ source_ip }}"
+          time_window: "1h"
+    
+    tags: ["dns", "tunneling", "suspicious-activity"]
+    created_by: "security-admin"
+    created_at: "2024-01-15T00:00:00Z"
+    updated_at: "2024-01-15T00:00:00Z"
+
+# Rule Engine Configuration
+engine_config:
+  # Processing settings
+  processing:
+    batch_size: 1000
+    max_processing_time: "30s"
+    retry_attempts: 3
+    retry_delay: "5s"
+  
+  # Correlation settings
+  correlation:
+    max_correlation_window: "1h"
+    min_events_for_correlation: 2
+    correlation_threshold: 0.7
+  
+  # Performance settings
+  performance:
+    max_concurrent_rules: 50
+    rule_evaluation_timeout: "10s"
+    memory_limit: "2GB"
+  
+  # Alert settings
+  alerting:
+    max_alerts_per_rule_per_hour: 100
+    alert_deduplication_window: "5m"
+    auto_resolve_after: "24h"
+  
+  # Integration settings
+  integrations:
+    slack:
+      enabled: true
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+      channel: "#security-alerts"
+    
+    email:
+      enabled: true
+      smtp_server: "${SMTP_SERVER}"
+      smtp_port: 587
+      username: "${SMTP_USERNAME}"
+      password: "${SMTP_PASSWORD}"
+    
+    webhook:
+      enabled: true
+      endpoints:
+        - url: "${WEBHOOK_URL_1}"
+          headers:
+            Authorization: "Bearer ${WEBHOOK_TOKEN_1}"
+        - url: "${WEBHOOK_URL_2}"
+          headers:
+            X-API-Key: "${WEBHOOK_API_KEY_2}"

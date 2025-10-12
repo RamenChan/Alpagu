@@ -1,0 +1,361 @@
+# PyGuardian v3 - Helm Chart Values
+# Production-ready configuration for Kubernetes deployment
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Image configuration
+image:
+  repository: pyguardian/api
+  tag: "3.0.0"
+  pullPolicy: IfNotPresent
+
+# API Service configuration
+api:
+  replicaCount: 3
+  image:
+    repository: pyguardian/api
+    tag: "3.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# Frontend configuration
+frontend:
+  replicaCount: 2
+  image:
+    repository: pyguardian/frontend
+    tag: "3.0.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Database configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "change-me-in-production"
+    username: "pyguardian"
+    password: "change-me-in-production"
+    database: "pyguardian"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+# ClickHouse configuration
+clickhouse:
+  enabled: true
+  auth:
+    username: "pyguardian"
+    password: "change-me-in-production"
+    database: "pyguardian"
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: ""
+  
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 8Gi
+    requests:
+      cpu: 2000m
+      memory: 4Gi
+
+# Kafka configuration
+kafka:
+  enabled: true
+  replicaCount: 3
+  
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: ""
+  
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+# Zookeeper configuration
+zookeeper:
+  enabled: true
+  replicaCount: 3
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "change-me-in-production"
+  
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+# MinIO configuration
+minio:
+  enabled: true
+  auth:
+    rootUser: "pyguardian"
+    rootPassword: "change-me-in-production"
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: ""
+  
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# Processing Services
+services:
+  collector:
+    replicaCount: 2
+    image:
+      repository: pyguardian/collector
+      tag: "3.0.0"
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+  
+  enrichment:
+    replicaCount: 3
+    image:
+      repository: pyguardian/enrichment
+      tag: "3.0.0"
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+  
+  detector:
+    replicaCount: 2
+    image:
+      repository: pyguardian/detector
+      tag: "3.0.0"
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+  
+  correlator:
+    replicaCount: 2
+    image:
+      repository: pyguardian/correlator
+      tag: "3.0.0"
+    
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+# Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+    server:
+      persistentVolume:
+        enabled: true
+        size: 50Gi
+        storageClass: ""
+      
+      resources:
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+        requests:
+          cpu: 1000m
+          memory: 2Gi
+  
+  grafana:
+    enabled: true
+    adminPassword: "change-me-in-production"
+    
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+    
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  
+  hosts:
+    - host: pyguardian.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service:
+            name: pyguardian-frontend
+            port: 80
+        - path: /api
+          pathType: Prefix
+          service:
+            name: pyguardian-api
+            port: 8000
+  
+  tls:
+    - secretName: pyguardian-tls
+      hosts:
+        - pyguardian.example.com
+
+# Security configuration
+security:
+  # Pod Security Context
+  podSecurityContext:
+    fsGroup: 1000
+    runAsNonRoot: true
+    runAsUser: 1000
+  
+  # Container Security Context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+  
+  # Network Policies
+  networkPolicy:
+    enabled: true
+  
+  # Pod Disruption Budget
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# Environment variables
+env:
+  # Security
+  SECRET_KEY: "change-me-in-production"
+  JWT_SECRET: "change-me-in-production"
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRE_MINUTES: 30
+  
+  # External APIs
+  THREAT_INTEL_API_KEY: ""
+  GEOIP_API_KEY: ""
+  MAPBOX_TOKEN: ""
+  
+  # Feature flags
+  ENABLE_DEBUG: "false"
+  ENABLE_METRICS: "true"
+  ENABLE_TRACING: "true"
+
+# Resource estimates for small deployment
+# Total resource requirements:
+# CPU: ~20 cores
+# Memory: ~40GB
+# Storage: ~350GB
+# 
+# Minimum viable deployment:
+# CPU: ~10 cores
+# Memory: ~20GB
+# Storage: ~200GB

@@ -1,0 +1,354 @@
+# PyGuardian v3 - Development Docker Compose
+# Complete development environment with all required services
+
+version: '3.8'
+
+services:
+  # Message Broker
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: pyguardian-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - pyguardian-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: pyguardian-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - pyguardian-network
+
+  # Databases
+  postgres:
+    image: postgres:15-alpine
+    container_name: pyguardian-postgres
+    environment:
+      POSTGRES_DB: pyguardian
+      POSTGRES_USER: pyguardian
+      POSTGRES_PASSWORD: pyguardian_dev_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - pyguardian-network
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8-alpine
+    container_name: pyguardian-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_DB: pyguardian
+      CLICKHOUSE_USER: pyguardian
+      CLICKHOUSE_PASSWORD: pyguardian_dev_password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./scripts/init-clickhouse.sql:/docker-entrypoint-initdb.d/init-clickhouse.sql
+    networks:
+      - pyguardian-network
+
+  # Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: pyguardian-minio
+    ports:
+      - "9001:9000"
+      - "9002:9001"
+    environment:
+      MINIO_ROOT_USER: pyguardian
+      MINIO_ROOT_PASSWORD: pyguardian_dev_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - pyguardian-network
+
+  # Redis for Caching
+  redis:
+    image: redis:7-alpine
+    container_name: pyguardian-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - pyguardian-network
+
+  # Backend API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: pyguardian-api
+    depends_on:
+      - postgres
+      - clickhouse
+      - kafka
+      - redis
+      - minio
+    ports:
+      - "8000:8000"
+    environment:
+      # Database
+      DATABASE_URL: postgresql://pyguardian:pyguardian_dev_password@postgres:5432/pyguardian
+      CLICKHOUSE_URL: clickhouse://pyguardian:pyguardian_dev_password@clickhouse:9000/pyguardian
+      
+      # Message Broker
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      
+      # Cache
+      REDIS_URL: redis://redis:6379/0
+      
+      # Object Storage
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: pyguardian
+      MINIO_SECRET_KEY: pyguardian_dev_password
+      MINIO_BUCKET: pyguardian-artifacts
+      
+      # Security
+      SECRET_KEY: dev_secret_key_change_in_production
+      JWT_SECRET: dev_jwt_secret_change_in_production
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 30
+      
+      # API
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+      
+      # External Services
+      THREAT_INTEL_API_KEY: your_threat_intel_api_key
+      GEOIP_API_KEY: your_geoip_api_key
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    networks:
+      - pyguardian-network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: pyguardian-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost:8000
+      REACT_APP_WS_URL: ws://localhost:8000
+      REACT_APP_MAPBOX_TOKEN: your_mapbox_token
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - pyguardian-network
+    command: npm start
+
+  # Data Collection Services
+  collector:
+    build:
+      context: ./collectors
+      dockerfile: Dockerfile.dev
+    container_name: pyguardian-collector
+    depends_on:
+      - kafka
+    ports:
+      - "2055:2055/udp"  # NetFlow
+      - "6343:6343/udp"  # sFlow
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      COLLECTOR_TYPE: netflow
+      COLLECTOR_PORT: 2055
+      DEBUG: "true"
+    volumes:
+      - ./collectors:/app
+      - ./logs:/app/logs
+    networks:
+      - pyguardian-network
+
+  # Processing Services
+  enrichment:
+    build:
+      context: ./services/enrichment
+      dockerfile: Dockerfile.dev
+    container_name: pyguardian-enrichment
+    depends_on:
+      - kafka
+      - redis
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_URL: redis://redis:6379/0
+      THREAT_INTEL_API_KEY: your_threat_intel_api_key
+      GEOIP_API_KEY: your_geoip_api_key
+      DEBUG: "true"
+    volumes:
+      - ./services/enrichment:/app
+      - ./logs:/app/logs
+    networks:
+      - pyguardian-network
+
+  detector:
+    build:
+      context: ./services/detector
+      dockerfile: Dockerfile.dev
+    container_name: pyguardian-detector
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DATABASE_URL: postgresql://pyguardian:pyguardian_dev_password@postgres:5432/pyguardian
+      DEBUG: "true"
+    volumes:
+      - ./services/detector:/app
+      - ./rules:/app/rules
+      - ./logs:/app/logs
+    networks:
+      - pyguardian-network
+
+  correlator:
+    build:
+      context: ./services/correlator
+      dockerfile: Dockerfile.dev
+    container_name: pyguardian-correlator
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      DATABASE_URL: postgresql://pyguardian:pyguardian_dev_password@postgres:5432/pyguardian
+      DEBUG: "true"
+    volumes:
+      - ./services/correlator:/app
+      - ./logs:/app/logs
+    networks:
+      - pyguardian-network
+
+  # Monitoring
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: pyguardian-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - pyguardian-network
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: pyguardian-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - pyguardian-network
+
+  # Development Tools
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: pyguardian-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - pyguardian-network
+
+  # Database Admin Tools
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pyguardian-pgadmin
+    depends_on:
+      - postgres
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@pyguardian.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - pyguardian-network
+
+  # ClickHouse Admin
+  tabix:
+    image: spoonest/clickhouse-tabix-web-client:latest
+    container_name: pyguardian-tabix
+    depends_on:
+      - clickhouse
+    ports:
+      - "8081:80"
+    environment:
+      TABIX_SERVER: clickhouse:8123
+    networks:
+      - pyguardian-network
+
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  postgres-data:
+  clickhouse-data:
+  minio-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  pgadmin-data:
+
+networks:
+  pyguardian-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

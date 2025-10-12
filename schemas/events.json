@@ -1,0 +1,395 @@
+{
+  "raw_flow_event": {
+    "description": "Raw network flow event from collectors",
+    "schema": {
+      "event_id": "string (UUID)",
+      "timestamp": "string (ISO 8601)",
+      "collector_id": "string",
+      "source_ip": "string (IPv4/IPv6)",
+      "dest_ip": "string (IPv4/IPv6)",
+      "source_port": "integer",
+      "dest_port": "integer",
+      "protocol": "integer (1=ICMP, 6=TCP, 17=UDP)",
+      "bytes_sent": "integer",
+      "bytes_received": "integer",
+      "packets_sent": "integer",
+      "packets_received": "integer",
+      "duration": "integer (seconds)",
+      "tcp_flags": "integer",
+      "tos": "integer",
+      "raw_data": "object (collector-specific)"
+    },
+    "example": {
+      "event_id": "550e8400-e29b-41d4-a716-446655440000",
+      "timestamp": "2024-01-15T10:30:45.123Z",
+      "collector_id": "netflow-collector-01",
+      "source_ip": "192.168.1.100",
+      "dest_ip": "203.0.113.45",
+      "source_port": 45678,
+      "dest_port": 22,
+      "protocol": 6,
+      "bytes_sent": 1024,
+      "bytes_received": 2048,
+      "packets_sent": 15,
+      "packets_received": 12,
+      "duration": 30,
+      "tcp_flags": 18,
+      "tos": 0,
+      "raw_data": {
+        "netflow_version": 9,
+        "sampling_rate": 1,
+        "interface": "eth0"
+      }
+    }
+  },
+  "enriched_event": {
+    "description": "Flow event with threat intelligence and asset enrichment",
+    "schema": {
+      "event_id": "string (UUID)",
+      "timestamp": "string (ISO 8601)",
+      "collector_id": "string",
+      "source_ip": "string",
+      "dest_ip": "string",
+      "source_port": "integer",
+      "dest_port": "integer",
+      "protocol": "integer",
+      "bytes_sent": "integer",
+      "bytes_received": "integer",
+      "packets_sent": "integer",
+      "packets_received": "integer",
+      "duration": "integer",
+      "tcp_flags": "integer",
+      "tos": "integer",
+      "enrichment": {
+        "source_asset": {
+          "hostname": "string",
+          "os": "string",
+          "owner": "string",
+          "department": "string",
+          "criticality": "string (low/medium/high/critical)"
+        },
+        "dest_asset": {
+          "hostname": "string",
+          "os": "string",
+          "owner": "string",
+          "department": "string",
+          "criticality": "string"
+        },
+        "geolocation": {
+          "source": {
+            "country": "string",
+            "region": "string",
+            "city": "string",
+            "latitude": "number",
+            "longitude": "number",
+            "asn": "string",
+            "organization": "string"
+          },
+          "dest": {
+            "country": "string",
+            "region": "string",
+            "city": "string",
+            "latitude": "number",
+            "longitude": "number",
+            "asn": "string",
+            "organization": "string"
+          }
+        },
+        "threat_intel": {
+          "source_reputation": {
+            "score": "number (-100 to 100)",
+            "categories": ["string"],
+            "sources": ["string"],
+            "last_updated": "string (ISO 8601)"
+          },
+          "dest_reputation": {
+            "score": "number (-100 to 100)",
+            "categories": ["string"],
+            "sources": ["string"],
+            "last_updated": "string (ISO 8601)"
+          }
+        }
+      },
+      "raw_data": "object"
+    },
+    "example": {
+      "event_id": "550e8400-e29b-41d4-a716-446655440000",
+      "timestamp": "2024-01-15T10:30:45.123Z",
+      "collector_id": "netflow-collector-01",
+      "source_ip": "192.168.1.100",
+      "dest_ip": "203.0.113.45",
+      "source_port": 45678,
+      "dest_port": 22,
+      "protocol": 6,
+      "bytes_sent": 1024,
+      "bytes_received": 2048,
+      "packets_sent": 15,
+      "packets_received": 12,
+      "duration": 30,
+      "tcp_flags": 18,
+      "tos": 0,
+      "enrichment": {
+        "source_asset": {
+          "hostname": "workstation-001",
+          "os": "Windows 11",
+          "owner": "john.doe@company.com",
+          "department": "Engineering",
+          "criticality": "medium"
+        },
+        "dest_asset": {
+          "hostname": null,
+          "os": null,
+          "owner": null,
+          "department": null,
+          "criticality": "unknown"
+        },
+        "geolocation": {
+          "source": {
+            "country": "United States",
+            "region": "California",
+            "city": "San Francisco",
+            "latitude": 37.7749,
+            "longitude": -122.4194,
+            "asn": "AS15169",
+            "organization": "Google LLC"
+          },
+          "dest": {
+            "country": "China",
+            "region": "Beijing",
+            "city": "Beijing",
+            "latitude": 39.9042,
+            "longitude": 116.4074,
+            "asn": "AS4134",
+            "organization": "China Telecom"
+          }
+        },
+        "threat_intel": {
+          "source_reputation": {
+            "score": 85,
+            "categories": ["legitimate"],
+            "sources": ["internal_cmdb"],
+            "last_updated": "2024-01-15T09:00:00Z"
+          },
+          "dest_reputation": {
+            "score": -45,
+            "categories": ["malware", "botnet"],
+            "sources": ["abuse_ch", "virustotal"],
+            "last_updated": "2024-01-15T08:30:00Z"
+          }
+        }
+      },
+      "raw_data": {
+        "netflow_version": 9,
+        "sampling_rate": 1,
+        "interface": "eth0"
+      }
+    }
+  },
+  "alert": {
+    "description": "Security alert generated by detection rules",
+    "schema": {
+      "alert_id": "string (UUID)",
+      "timestamp": "string (ISO 8601)",
+      "rule_id": "string",
+      "rule_name": "string",
+      "severity": "string (low/medium/high/critical)",
+      "status": "string (new/investigating/resolved/false_positive)",
+      "source_events": ["string (UUID)"],
+      "description": "string",
+      "mitre_attack": {
+        "tactics": ["string"],
+        "techniques": ["string"],
+        "sub_techniques": ["string"]
+      },
+      "risk_score": "number (0-100)",
+      "affected_assets": ["string"],
+      "indicators": {
+        "ips": ["string"],
+        "domains": ["string"],
+        "hashes": ["string"],
+        "urls": ["string"]
+      },
+      "context": "object",
+      "assigned_to": "string (user_id)",
+      "created_by": "string (system/user_id)",
+      "tags": ["string"]
+    },
+    "example": {
+      "alert_id": "alert-550e8400-e29b-41d4-a716-446655440001",
+      "timestamp": "2024-01-15T10:35:00.000Z",
+      "rule_id": "rule-ssh-brute-force",
+      "rule_name": "SSH Brute Force Attack",
+      "severity": "high",
+      "status": "new",
+      "source_events": [
+        "550e8400-e29b-41d4-a716-446655440000",
+        "550e8400-e29b-41d4-a716-446655440002"
+      ],
+      "description": "Multiple failed SSH login attempts detected from external IP",
+      "mitre_attack": {
+        "tactics": ["TA0006", "TA0007"],
+        "techniques": ["T1110", "T1021"],
+        "sub_techniques": ["T1110.001", "T1021.004"]
+      },
+      "risk_score": 78,
+      "affected_assets": ["192.168.1.100", "workstation-001"],
+      "indicators": {
+        "ips": ["203.0.113.45"],
+        "domains": [],
+        "hashes": [],
+        "urls": []
+      },
+      "context": {
+        "failed_attempts": 15,
+        "time_window": "5 minutes",
+        "source_country": "China",
+        "dest_port": 22
+      },
+      "assigned_to": null,
+      "created_by": "system",
+      "tags": ["ssh", "brute-force", "external-threat"]
+    }
+  },
+  "incident": {
+    "description": "Security incident created from correlated alerts",
+    "schema": {
+      "incident_id": "string (UUID)",
+      "title": "string",
+      "description": "string",
+      "status": "string (new/investigating/contained/resolved/closed)",
+      "priority": "string (low/medium/high/critical)",
+      "severity": "string (low/medium/high/critical)",
+      "created_at": "string (ISO 8601)",
+      "updated_at": "string (ISO 8601)",
+      "resolved_at": "string (ISO 8601)",
+      "assigned_to": "string (user_id)",
+      "created_by": "string (user_id)",
+      "source_alerts": ["string (UUID)"],
+      "mitre_attack": {
+        "tactics": ["string"],
+        "techniques": ["string"],
+        "sub_techniques": ["string"]
+      },
+      "risk_score": "number (0-100)",
+      "affected_assets": ["string"],
+      "indicators": {
+        "ips": ["string"],
+        "domains": ["string"],
+        "hashes": ["string"],
+        "urls": ["string"]
+      },
+      "timeline": [
+        {
+          "timestamp": "string (ISO 8601)",
+          "event_type": "string",
+          "description": "string",
+          "user": "string",
+          "metadata": "object"
+        }
+      ],
+      "playbooks": [
+        {
+          "playbook_id": "string",
+          "name": "string",
+          "status": "string (pending/running/completed/failed)",
+          "started_at": "string (ISO 8601)",
+          "completed_at": "string (ISO 8601)",
+          "steps": [
+            {
+              "step_id": "string",
+              "name": "string",
+              "status": "string",
+              "output": "string"
+            }
+          ]
+        }
+      ],
+      "tags": ["string"],
+      "notes": [
+        {
+          "timestamp": "string (ISO 8601)",
+          "user": "string",
+          "content": "string",
+          "type": "string (note/action/observation)"
+        }
+      ]
+    },
+    "example": {
+      "incident_id": "inc-550e8400-e29b-41d4-a716-446655440003",
+      "title": "Suspicious SSH Activity from External IP",
+      "description": "Multiple SSH brute force attempts detected from Chinese IP address targeting internal assets",
+      "status": "investigating",
+      "priority": "high",
+      "severity": "high",
+      "created_at": "2024-01-15T10:35:00.000Z",
+      "updated_at": "2024-01-15T11:15:00.000Z",
+      "resolved_at": null,
+      "assigned_to": "analyst-001",
+      "created_by": "system",
+      "source_alerts": [
+        "alert-550e8400-e29b-41d4-a716-446655440001"
+      ],
+      "mitre_attack": {
+        "tactics": ["TA0006", "TA0007"],
+        "techniques": ["T1110", "T1021"],
+        "sub_techniques": ["T1110.001", "T1021.004"]
+      },
+      "risk_score": 78,
+      "affected_assets": ["192.168.1.100", "workstation-001"],
+      "indicators": {
+        "ips": ["203.0.113.45"],
+        "domains": [],
+        "hashes": [],
+        "urls": []
+      },
+      "timeline": [
+        {
+          "timestamp": "2024-01-15T10:35:00.000Z",
+          "event_type": "incident_created",
+          "description": "Incident created from SSH brute force alert",
+          "user": "system",
+          "metadata": {}
+        },
+        {
+          "timestamp": "2024-01-15T10:40:00.000Z",
+          "event_type": "assigned",
+          "description": "Incident assigned to analyst-001",
+          "user": "admin-001",
+          "metadata": {}
+        }
+      ],
+      "playbooks": [
+        {
+          "playbook_id": "ssh-incident-response",
+          "name": "SSH Incident Response",
+          "status": "running",
+          "started_at": "2024-01-15T10:45:00.000Z",
+          "completed_at": null,
+          "steps": [
+            {
+              "step_id": "step-1",
+              "name": "Block Source IP",
+              "status": "completed",
+              "output": "IP 203.0.113.45 blocked on firewall"
+            },
+            {
+              "step_id": "step-2",
+              "name": "Check Affected Systems",
+              "status": "running",
+              "output": "Scanning workstation-001 for compromise indicators"
+            }
+          ]
+        }
+      ],
+      "tags": ["ssh", "brute-force", "external-threat", "china"],
+      "notes": [
+        {
+          "timestamp": "2024-01-15T10:50:00.000Z",
+          "user": "analyst-001",
+          "content": "Initial investigation shows no successful logins, but monitoring for additional activity",
+          "type": "observation"
+        }
+      ]
+    }
+  }
+}
